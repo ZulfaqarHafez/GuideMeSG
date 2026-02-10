@@ -21,7 +21,10 @@ export async function GET(request) {
   const startLng = parseFloat(searchParams.get('startLng'));
   const destLat = parseFloat(searchParams.get('destLat'));
   const destLng = parseFloat(searchParams.get('destLng'));
-  const mode = searchParams.get('mode') || 'fastest'; // fastest, walking, transit
+  const requestedMode = searchParams.get('mode') || 'fastest';
+  
+  // Restrict to public transport modes only - no private vehicle routing
+  const mode = ['walking', 'transit', 'fastest'].includes(requestedMode) ? requestedMode : 'fastest';
 
   if (!startLat || !startLng || !destLat || !destLng) {
     return NextResponse.json({ error: 'Missing coordinates' }, { status: 400 });
@@ -38,7 +41,7 @@ export async function GET(request) {
 
     const [walkingRoute, transitRoute] = routes;
 
-    // Determine best route based on mode and distance
+    // Determine best route based on mode and distance (public transport only)
     let recommendedRoute;
     
     if (mode === 'walking' || totalDistance <= MAX_WALKING_DISTANCE_KM) {
@@ -46,11 +49,16 @@ export async function GET(request) {
     } else if (mode === 'transit') {
       recommendedRoute = transitRoute || walkingRoute;
     } else {
-      // Fastest mode - compare estimated times
+      // Fastest mode - compare walking vs public transport only
       const walkingTime = walkingRoute?.estimatedTime || Infinity;
       const transitTime = transitRoute?.estimatedTime || Infinity;
       
-      recommendedRoute = transitTime < walkingTime ? transitRoute : walkingRoute;
+      // For longer distances, prefer public transport even if walking is theoretically faster
+      if (totalDistance > MAX_WALKING_DISTANCE_KM && transitRoute) {
+        recommendedRoute = transitRoute;
+      } else {
+        recommendedRoute = transitTime < walkingTime ? transitRoute : walkingRoute;
+      }
     }
 
     return NextResponse.json({

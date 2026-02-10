@@ -112,18 +112,22 @@ export async function getNearbyLandmarks(
 }
 
 /**
- * Get walking/driving route between two points
+ * Get walking/public transport route between two points
+ * Only supports walking and public transport - no private vehicle routing
  */
 export async function getRoute(
   startLat: number,
   startLng: number,
   endLat: number,
   endLng: number,
-  mode: 'walk' | 'drive' | 'pt' = 'walk' // walk, drive, or public transport
+  mode: 'walk' | 'pt' = 'walk' // walk or public transport only
 ): Promise<OneMapRoute | null> {
   try {
+    // Ensure only public transport modes are used
+    const routeType = mode === 'pt' ? 'pt' : 'walk';
+    
     const response = await fetch(
-      `${ONEMAP_API_BASE}/public/routingsvc/route?start=${startLat},${startLng}&end=${endLat},${endLng}&routeType=${mode}`
+      `${ONEMAP_API_BASE}/public/routingsvc/route?start=${startLat},${startLng}&end=${endLat},${endLng}&routeType=${routeType}`
     );
 
     if (!response.ok) {
@@ -164,6 +168,7 @@ export async function convertSVY21toWGS84(x: number, y: number): Promise<{ lat: 
 
 /**
  * Get static map image URL
+ * @deprecated Use googleCloudApi.ts getStaticMapUrl instead - migrated to Google Cloud API
  */
 export function getStaticMapUrl(
   lat: number,
@@ -249,6 +254,7 @@ export function decodePolyline(encoded: string): Array<[number, number]> {
 /**
  * Get visual landmark for cognitive guidance
  * Returns the most prominent landmark near a location
+ * @deprecated Use googleCloudApi.ts getVisualLandmark instead - migrated to Google Cloud API for better image availability
  */
 export async function getVisualLandmark(lat: number, lng: number): Promise<{
   name: string;

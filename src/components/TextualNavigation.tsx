@@ -14,7 +14,9 @@ import {
 } from '@/lib/ltaDataMall';
 import { 
   getVisualLandmark, 
-  getStaticMapUrl,
+  getStaticMapUrl
+} from '@/lib/googleCloudApi';
+import { 
   reverseGeocode 
 } from '@/lib/oneMapApi';
 
@@ -253,22 +255,21 @@ export default function TextualNavigation({
   };
 
   const fetchStepVisualContext = async (step: NavigationStep) => {
-    if (step.type === 'landmark' || step.type === 'walk') {
-      setLoadingImages(true);
-      try {
-        const landmark = await Promise.race([
-          getVisualLandmark(step.location[0], step.location[1]),
-          new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Visual landmark timeout')), 3000)
-          )
-        ]);
-        setVisualLandmark(landmark);
-      } catch (error) {
-        console.warn('Visual landmark fetch failed:', error);
-        setVisualLandmark(null);
-      } finally {
-        setLoadingImages(false);
-      }
+    // Fetch landmarks for all step types to use as fallback when map fails
+    setLoadingImages(true);
+    try {
+      const landmark = await Promise.race([
+        getVisualLandmark(step.location[0], step.location[1]),
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Visual landmark timeout')), 3000)
+        )
+      ]);
+      setVisualLandmark(landmark);
+    } catch (error) {
+      console.warn('Visual landmark fetch failed:', error);
+      setVisualLandmark(null);
+    } finally {
+      setLoadingImages(false);
     }
   };
 
@@ -399,11 +400,50 @@ export default function TextualNavigation({
                 loading="lazy"
               />
             ) : (
-              <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Map preview unavailable</p>
-                </div>
+              <div className="w-full h-48 bg-muted">
+                {/* Show landmark images if available when map fails */}
+                {visualLandmark && visualLandmark.imageUrl && !imageErrors.has(`landmark-fallback-${currentStep.id}`) ? (
+                  <div className="relative w-full h-full">
+                    <img 
+                      src={visualLandmark.imageUrl}
+                      alt={`${visualLandmark.name} - nearby landmark`}
+                      className="w-full h-full object-cover"
+                      onError={() => handleImageError(`landmark-fallback-${currentStep.id}`)}
+                      loading="lazy"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                      <div className="text-white">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MapPin className="h-4 w-4" />
+                          <span className="text-sm font-medium">Nearby Landmark</span>
+                        </div>
+                        <p className="text-sm font-semibold">{visualLandmark.name}</p>
+                        <p className="text-xs opacity-90">{Math.round(visualLandmark.distance)}m away</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Map preview unavailable</p>
+                      {loadingImages && (
+                        <p className="text-xs mt-1 animate-pulse">Looking for nearby landmarks...</p>
+                      )}
+                      {visualLandmark && !visualLandmark.imageUrl && (
+                        <div className="mt-3 p-3 bg-background rounded-lg border">
+                          <div className="flex items-center gap-2 text-xs">
+                            <MapPin className="h-3 w-3" />
+                            <span className="font-medium">{visualLandmark.name}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {Math.round(visualLandmark.distance)}m away • {visualLandmark.category}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
